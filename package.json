@@ -1,6 +1,6 @@
 {
   "name": "browsers-detect",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Detect installed desktop browsers, their profiles, and the system default browser.",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test tests/**/*.test.mjs"
+    "test": "npm run build && node --test tests/**/*.test.mjs",
+    "prepack": "npm run build"
   },
   "keywords": [
     "browser",
@@ -26,6 +27,14 @@
     "desktop"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chadidi/browsers-detect.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chadidi/browsers-detect/issues"
+  },
+  "homepage": "https://github.com/chadidi/browsers-detect#readme",
   "engines": {
     "node": ">=18"
   },

@@ -17,6 +17,17 @@ export type BrowserId =
   | 'safari'
   | 'vivaldi';
 
+export const CHROMIUM_BROWSER_IDS = ['arc', 'brave', 'chrome', 'chromium', 'edge', 'vivaldi'] as const;
+export const FIREFOX_BROWSER_IDS = ['firefox', 'firefox-developer-edition'] as const;
+
+export function isChromiumBrowser(browser: BrowserId): boolean {
+  return (CHROMIUM_BROWSER_IDS as readonly BrowserId[]).includes(browser);
+}
+
+export function isFirefoxBrowser(browser: BrowserId): boolean {
+  return (FIREFOX_BROWSER_IDS as readonly BrowserId[]).includes(browser);
+}
+
 export interface BrowserProfile {
   /** Stable folder name used by the browser, for example `Default` or `Profile 1`. */
   id: string;
@@ -124,6 +135,11 @@ const BROWSERS: BrowserDefinition[] = [
   },
 ];
 
+/** Human-readable browser names keyed by stable browser ID. */
+export const BROWSER_NAMES: Record<BrowserId, string> = Object.fromEntries(
+  BROWSERS.map((browser) => [browser.id, browser.name]),
+) as Record<BrowserId, string>;
+
 /** Detects browser installations and local profiles without running external commands. */
 export function detectBrowsersSync(options: DetectOptions = {}): DetectedBrowser[] {
   const platform = options.platform ?? process.platform;
@@ -147,7 +163,14 @@ export async function detectDefaultBrowserId(
   try {
     let output: string;
     if (platform === 'darwin') {
-      ({ stdout: output } = await execFileAsync('osascript', ['-l', 'JavaScript', '-e', 'ObjC.import("AppKit"); $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.URLWithString("http://example.com")).bundleIdentifier.js']));
+      ({ stdout: output } = await execFileAsync('defaults', [
+        'read',
+        'com.apple.LaunchServices/com.apple.launchservices.secure',
+        'LSHandlers',
+      ], { env }));
+      // `defaults` prints a plist-like structure. Limit the match to the outer role field
+      // immediately preceding the HTTP handler so nested version fields are ignored.
+      output = output.match(/LSHandlerRoleAll = "?([^";]+)"?;\s*LSHandlerURLScheme = http;/)?.[1] ?? '';
     } else if (platform === 'win32') {
       ({ stdout: output } = await execFileAsync('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice', '/v', 'ProgId'], { env }));
     } else {

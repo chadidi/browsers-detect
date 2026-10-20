@@ -1,0 +1,36 @@
+{
+  "name": "browsers-detect",
+  "version": "0.1.0",
+  "description": "Detect installed desktop browsers, their profiles, and the system default browser.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test tests/**/*.test.mjs"
+  },
+  "keywords": [
+    "browser",
+    "browser-detection",
+    "profiles",
+    "desktop"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "typescript": "^5.8.3"
+  }
+}

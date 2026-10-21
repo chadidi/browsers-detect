@@ -1,10 +1,6 @@
-import { execFile } from 'child_process';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
 
 export type BrowserId =
   | 'arc'
@@ -37,8 +33,6 @@ export interface BrowserProfile {
   path: string;
   /** Local bookmark files associated with this profile, when known. */
   bookmarkPaths: string[];
-  /** Whether this is the browser's selected default profile. */
-  isDefault: boolean;
 }
 
 export interface DetectedBrowser {
@@ -52,8 +46,6 @@ export interface DetectedBrowser {
   userDataPath?: string;
   /** Every discovered local browser profile. */
   profiles: BrowserProfile[];
-  /** True when this browser is registered as the OS default for HTTP URLs. */
-  isDefault: boolean;
 }
 
 export interface DetectOptions {
@@ -148,54 +140,9 @@ export function detectBrowsersSync(options: DetectOptions = {}): DetectedBrowser
   return BROWSERS.map((definition) => detectBrowser(definition, platform, home, env)).filter((browser) => browser.installed);
 }
 
-/** Detects browser installations, profiles, and the browser registered as the system default. */
+/** Detects browser installations and local profiles. */
 export async function detectBrowsers(options: DetectOptions = {}): Promise<DetectedBrowser[]> {
-  const browsers = detectBrowsersSync(options);
-  const defaultId = await detectDefaultBrowserId(options.platform ?? process.platform, options.env ?? process.env);
-  return browsers.map((browser) => ({ ...browser, isDefault: browser.id === defaultId }));
-}
-
-/** Resolves the supported browser ID registered for HTTP URLs, or `undefined` when unknown. */
-export async function detectDefaultBrowserId(
-  platform: NodeJS.Platform = process.platform,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<BrowserId | undefined> {
-  try {
-    let output: string;
-    if (platform === 'darwin') {
-      ({ stdout: output } = await execFileAsync('defaults', [
-        'read',
-        'com.apple.LaunchServices/com.apple.launchservices.secure',
-        'LSHandlers',
-      ], { env }));
-      // `defaults` prints a plist-like structure. Limit the match to the outer role field
-      // immediately preceding the HTTP handler so nested version fields are ignored.
-      output = output.match(/LSHandlerRoleAll = "?([^";]+)"?;\s*LSHandlerURLScheme = http;/)?.[1] ?? '';
-    } else if (platform === 'win32') {
-      ({ stdout: output } = await execFileAsync('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice', '/v', 'ProgId'], { env }));
-    } else {
-      ({ stdout: output } = await execFileAsync('xdg-settings', ['get', 'default-web-browser'], { env }));
-    }
-    return browserIdFromIdentifier(output);
-  } catch {
-    return undefined;
-  }
-}
-
-/** Maps a browser bundle identifier, executable name, or desktop entry to a supported browser ID. */
-export function browserIdFromIdentifier(identifier: string): BrowserId | undefined {
-  const value = identifier.trim().toLowerCase();
-  if (!value) return undefined;
-  if (value.includes('arc')) return 'arc';
-  if (value.includes('brave')) return 'brave';
-  if (value.includes('vivaldi')) return 'vivaldi';
-  if (value.includes('microsoft-edge') || value.includes('msedge')) return 'edge';
-  if (value.includes('firefox-developer')) return 'firefox-developer-edition';
-  if (value.includes('firefox')) return 'firefox';
-  if (value.includes('chromium')) return 'chromium';
-  if (value.includes('chrome')) return 'chrome';
-  if (value.includes('safari')) return 'safari';
-  return undefined;
+  return detectBrowsersSync(options);
 }
 
 function detectBrowser(definition: BrowserDefinition, platform: NodeJS.Platform, home: string, env: NodeJS.ProcessEnv): DetectedBrowser {
@@ -211,7 +158,6 @@ function detectBrowser(definition: BrowserDefinition, platform: NodeJS.Platform,
     ...(executablePath ? { executablePath } : {}),
     ...(userDataPath ? { userDataPath } : {}),
     profiles,
-    isDefault: false,
   };
 }
 
@@ -224,45 +170,32 @@ function profilesFor(kind: BrowserDefinition['kind'], userDataPath: string): Bro
 }
 
 function chromiumProfiles(userDataPath: string): BrowserProfile[] {
-  const localState = readJson(join(userDataPath, 'Local State')) as { profile?: { info_cache?: Record<string, { name?: string }>; last_used?: string } } | undefined;
+  const localState = readJson(join(userDataPath, 'Local State')) as { profile?: { info_cache?: Record<string, { name?: string }> } } | undefined;
   const info = localState?.profile?.info_cache ?? {};
   const folders = new Set(Object.keys(info));
   for (const entry of safeDirectoryEntries(userDataPath)) {
     if (entry.isDirectory() && (entry.name === 'Default' || /^Profile \d+$/.test(entry.name))) folders.add(entry.name);
   }
-  const lastUsed = localState?.profile?.last_used;
   return [...folders].sort().map((id) => {
     const profilePath = join(userDataPath, id);
     const bookmarkPaths = ['Bookmarks', 'AccountBookmarks'].map((file) => join(profilePath, file)).filter(existsSync);
-    return { id, name: info[id]?.name ?? (id === 'Default' ? 'Default' : id), path: profilePath, bookmarkPaths, isDefault: id === lastUsed || (!lastUsed && id === 'Default') };
+    return { id, name: info[id]?.name ?? (id === 'Default' ? 'Default' : id), path: profilePath, bookmarkPaths };
   });
 }
 
 function firefoxProfiles(root: string): BrowserProfile[] {
   const profilesDir = existsSync(join(root, 'Profiles')) ? join(root, 'Profiles') : root;
   const entries = safeDirectoryEntries(profilesDir).filter((entry) => entry.isDirectory());
-  const defaultProfile = readFirefoxDefaultProfile(root);
   return entries.map((entry) => {
     const profilePath = join(profilesDir, entry.name);
     const places = join(profilePath, 'places.sqlite');
-    return { id: entry.name, name: entry.name.replace(/^[^.]+\./, ''), path: profilePath, bookmarkPaths: existsSync(places) ? [places] : [], isDefault: entry.name === defaultProfile || entry.name.endsWith('.default-release') };
-  }).sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name));
+    return { id: entry.name, name: entry.name.replace(/^[^.]+\./, ''), path: profilePath, bookmarkPaths: existsSync(places) ? [places] : [] };
+  }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function safariProfiles(safariPath: string): BrowserProfile[] {
   const bookmarks = join(safariPath, 'Bookmarks.plist');
-  return [{ id: 'default', name: 'Default', path: safariPath, bookmarkPaths: existsSync(bookmarks) ? [bookmarks] : [], isDefault: true }];
-}
-
-function readFirefoxDefaultProfile(root: string): string | undefined {
-  try {
-    const ini = readFileSync(join(root, 'profiles.ini'), 'utf8');
-    const section = ini.split(/\r?\n\s*\r?\n/).find((block) => /^Default=1$/m.test(block));
-    const relative = section?.match(/^Path=(.+)$/m)?.[1]?.trim();
-    return relative ? path.basename(relative) : undefined;
-  } catch {
-    return undefined;
-  }
+  return [{ id: 'default', name: 'Default', path: safariPath, bookmarkPaths: existsSync(bookmarks) ? [bookmarks] : [] }];
 }
 
 function readJson(file: string): unknown {

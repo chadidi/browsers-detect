@@ -1,6 +1,6 @@
 # browsers-detect
 
-Local Node.js package for discovering desktop browsers, their local profiles, and the browser registered as the operating-system default.
+Local Node.js package for discovering desktop browsers and their local profiles without executing shell commands.
 
 ```ts
 import { detectBrowsers, detectBrowsersSync } from 'browsers-detect';
@@ -13,6 +13,6 @@ console.log(chrome?.profiles);
 const installedBrowsers = detectBrowsersSync();
 ```
 
-`detectBrowsers()` uses the host operating system to resolve the default browser. It returns browser records even when no executable can be found, provided a supported browser has local profile data. This is useful for importing local bookmarks.
+`detectBrowsers()` and `detectBrowsersSync()` perform filesystem-only discovery. Browser records are returned when an executable or local profile data is found, which is useful for importing local bookmarks.
 
 Supported browser families are Chrome, Chromium, Microsoft Edge, Brave, Vivaldi, Arc, Firefox, Firefox Developer Edition, and Safari (macOS).

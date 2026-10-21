@@ -3,14 +3,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { browserIdFromIdentifier, detectBrowsersSync } from '../dist/index.js';
-
-test('maps common default-browser identifiers', () => {
-  assert.equal(browserIdFromIdentifier('com.google.Chrome'), 'chrome');
-  assert.equal(browserIdFromIdentifier('firefox.desktop'), 'firefox');
-  assert.equal(browserIdFromIdentifier('MSEdgeHTM'), 'edge');
-  assert.equal(browserIdFromIdentifier('unknown.browser'), undefined);
-});
+import { detectBrowsersSync } from '../dist/index.js';
 
 test('discovers Chromium profiles and their bookmark files', async () => {
   const home = await mkdtemp(path.join(os.tmpdir(), 'browsers-detect-'));
@@ -27,6 +20,7 @@ test('discovers Chromium profiles and their bookmark files', async () => {
   assert.ok(chrome);
   assert.equal(chrome.profiles.length, 2);
   assert.deepEqual(chrome.profiles.map((profile) => profile.name), ['Personal', 'Work']);
-  assert.equal(chrome.profiles.find((profile) => profile.id === 'Profile 1')?.isDefault, true);
   assert.equal(chrome.profiles.find((profile) => profile.id === 'Default')?.bookmarkPaths.length, 1);
+  assert.equal('isDefault' in chrome, false);
+  assert.equal(chrome.profiles.some((profile) => 'isDefault' in profile), false);
 });

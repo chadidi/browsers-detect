@@ -1,7 +1,7 @@
 {
   "name": "browsers-detect",
-  "version": "0.1.1",
-  "description": "Detect installed desktop browsers, their profiles, and the system default browser.",
+  "version": "0.2.0",
+  "description": "Detect installed desktop browsers and their local profiles.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
